@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support Application</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            cursor: none;
+        }
+
+        #snow-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        #custom-cursor {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            transition: transform 0.1s ease-out;
+        }
+
+        .cursor-trail {
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background-color: white;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9998;
+            animation: fall 1s linear forwards;
+        }
+
+        @keyframes fall {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(80px);
+            }
+        }
+
+        #app-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        #apply-btn {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            color: #000;
+            background-color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: none;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        #apply-btn:hover {
+            background-color: #ccc;
+            transform: scale(1.05);
+        }
+
+        #loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #555;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #support-form {
+            background-color: rgba(20, 20, 20, 0.85);
+            padding: 20px 40px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow-y: auto;
+            text-align: left;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background-color: #111;
+            color: #fff;
+            font-size: 1em;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #fff;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+
+        .form-group input.error,
+        .form-group textarea.error {
+            border-color: #ff5555;
+            box-shadow: 0 0 5px rgba(255, 85, 85, 0.5);
+        }
+
+        #support-form button {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+            color: #000;
+            background-color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: none;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+
+        #support-form button:hover {
+            background-color: #ccc;
+        }
+
+        #notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ff4444;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+
+        #notification.show {
+            opacity: 1;
+            transform: translate(-50%, -10px);
+            pointer-events: auto;
+        }
+
+        #success-message {
+            color: #fff;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="snow-canvas"></canvas>
+    <div id="custom-cursor"></div>
+
+    <div id="app-container">
+        <button id="apply-btn">Apply for Support</button>
+        <div id="loader" class="hidden"></div>
+        <form id="support-form" class="hidden">
+            <h2>Support Application</h2>
+            <!-- Questions will be dynamically generated -->
+        </form>
+        <div id="notification" class="hidden"></div>
+        <div id="success-message" class="hidden">
+            <h2>Thank you!</h2>
+            <p>Your application has been submitted successfully.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Custom Cursor ---
+            const cursor = document.getElementById('custom-cursor');
+            document.addEventListener('mousemove', e => {
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
+
+                // Create and animate a trail particle
+                const trail = document.createElement('div');
+                trail.className = 'cursor-trail';
+                trail.style.left = e.clientX + 'px';
+                trail.style.top = e.clientY + 'px';
+                document.body.appendChild(trail);
+
+                setTimeout(() => {
+                    trail.remove();
+                }, 1000); // Remove after animation ends
+            });
+
+            // --- Snowflake Effect ---
+            const canvas = document.getElementById('snow-canvas');
+            const ctx = canvas.getContext('2d');
+
+            let width = canvas.width = window.innerWidth;
+            let height = canvas.height = window.innerHeight;
+
+            window.addEventListener('resize', () => {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            });
+
+            const snowflakes = [];
+            const numFlakes = 200;
+
+            for (let i = 0; i < numFlakes; i++) {
+                snowflakes.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    radius: Math.random() * 2 + 1,
+                    speed: Math.random() * 2 + 0.5,
+                    opacity: Math.random() * 0.5 + 0.5
+                });
+            }
+
+            function drawSnowflakes() {
+                ctx.clearRect(0, 0, width, height);
+                ctx.fillStyle = 'white';
+
+                for (const flake of snowflakes) {
+                    ctx.beginPath();
+                    ctx.arc(flake.x, flake.y, flake.radius, 0, Math.PI * 2);
+                    ctx.globalAlpha = flake.opacity;
+                    ctx.fill();
+
+                    // Update position
+                    flake.y += flake.speed;
+
+                    // Reset flake if it goes off screen
+                    if (flake.y > height) {
+                        flake.y = -flake.radius;
+                        flake.x = Math.random() * width;
+                    }
+                }
+                ctx.globalAlpha = 1; // Reset global alpha
+                requestAnimationFrame(drawSnowflakes);
+            }
+            drawSnowflakes();
+
+
+            // --- Application Flow ---
+            const applyBtn = document.getElementById('apply-btn');
+            const loader = document.getElementById('loader');
+            const form = document.getElementById('support-form');
+            const notification = document.getElementById('notification');
+            const successMessage = document.getElementById('success-message');
+
+            const webhookUrl = "https://discord.com/api/webhooks/1417580455909261422/pXgKjbFbRCi73aBwDylpTAMV1_lCju7k6fRS4JL5ct5FmXNeVeYQvhugiCibIVKGYpY0";
+
+            const questions = [
+                "Why do you want to apply for Support?",
+                "Why do you want to provide support for us?",
+                "What's your Discord username or ID?",
+                "Do you have prior experience?",
+                "Do you know how to correctly help a user?",
+                "What do you do if someone bought something and then opens a ticket?",
+                "How old are you?",
+                "Are you aware that you won't get paid for being a supporter?",
+                "Are you loyal and can you commit to supporting the server for 1 year or more?"
+            ];
+
+            function createForm() {
+                questions.forEach((q, index) => {
+                    const group = document.createElement('div');
+                    group.className = 'form-group';
+
+                    const label = document.createElement('label');
+                    label.setAttribute('for', `q${index}`);
+                    label.textContent = `${index + 1}. ${q}`;
+
+                    const input = document.createElement(index < 6 ? 'textarea' : 'input');
+                    if (index < 6) {
+                        input.rows = 3;
+                    }
+                    input.id = `q${index}`;
+                    input.name = `q${index}`;
+                    input.type = 'text';
+
+                    group.appendChild(label);
+                    group.appendChild(input);
+                    form.appendChild(group);
+                });
+
+                const submitBtn = document.createElement('button');
+                submitBtn.type = 'submit';
+                submitBtn.textContent = 'Submit my answers';
+                form.appendChild(submitBtn);
+            }
+
+            createForm();
+
+            applyBtn.addEventListener('click', () => {
+                applyBtn.classList.add('hidden');
+                loader.classList.remove('hidden');
+
+                setTimeout(() => {
+                    loader.classList.add('hidden');
+                    form.classList.remove('hidden');
+                }, 2000);
+            });
+
+            function showNotification(message) {
+                notification.textContent = message;
+                notification.classList.add('show');
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const inputs = form.querySelectorAll('input, textarea');
+                let allFilled = true;
+
+                inputs.forEach(input => {
+                    input.classList.remove('error');
+                    if (input.value.trim() === '') {
+                        allFilled = false;
+                        input.classList.add('error');
+                    }
+                });
+
+                if (!allFilled) {
+                    showNotification('Please fill out all fields.');
+                    return;
+                }
+
+                const submitButton = form.querySelector('button[type="submit"]');
+                submitButton.disabled = true;
+                submitButton.textContent = 'Submitting...';
+
+                const payload = {
+                    username: "Support Application Bot",
+                    avatar_url: "https://i.imgur.com/hTQwT7x.jpeg",
+                    embeds: [{
+                        title: "New Support Application",
+                        color: 0x0099ff,
+                        fields: [],
+                        timestamp: new Date().toISOString(),
+                        footer: {
+                            text: "Application Received"
+                        }
+                    }]
+                };
+
+                questions.forEach((question, index) => {
+                    const input = document.getElementById(`q${index}`);
+                    payload.embeds[0].fields.push({
+                        name: `${index + 1}. ${question}`,
+                        value: input.value.trim() || "No answer provided."
+                    });
+                });
+
+                try {
+                    const response = await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+
+                    if (response.ok) {
+                        form.classList.add('hidden');
+                        successMessage.classList.remove('hidden');
+                    } else {
+                        showNotification(`Error: ${response.status} ${response.statusText}`);
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Submit my answers';
+                    }
+                } catch (error) {
+                    console.error('Error submitting form:', error);
+                    showNotification('An error occurred. Please try again later.');
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Submit my answers';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
